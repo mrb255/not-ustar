@@ -1,6 +1,7 @@
 
 struct fsRecord_header
 {
+    char eyecatch[4];
 
     char fName[255];
     // we don't care about security
@@ -16,5 +17,5 @@ struct fsRecord_header
     char uname[32];
     char gname[32];
 
-    char padding[44];
+    char padding[40];
 };

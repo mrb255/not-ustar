@@ -38,6 +38,8 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <fsRecord.h>
+
 
 /* The filesystem you implement must support all the 13 operations
    stubbed out below. There need no be support for access rights,
@@ -243,30 +245,51 @@ void debug_ustar(const char *statement)
 }
 
 
+//TODO: add 512 block of "FIREFIREFIRE..." data
 
-bool init_fsRecord(const char *file_name, char inIsDirectory, long inFsSize, char fsHeader[512])
+void check_fsRecord_for_fire(void *fsptr)
 {
-    struct fsHeader *h = (struct fsRecord_header *) header;
+
+
+
+    //if first 512 blocks <> "FIRE"
+        // initialize structure and make reserve first 512 blocks to say "FIRE"
+    //else do nothing. Has already been initialized.
+
+
+
+}
+
+
+int init_fsRecord(const char *file_name, char inIsDirectory, long inFsSize, char fsHeader[512])
+{
+
+    //struct fsRecord_header
+    struct ustar_header *h = (struct ustar_header *) header;
+
+    struct fsRecord_header *h = (struct fsRecord_header *) fsHeader;
 
     //strip "antisocial prefixes here
 
-    if(strlen(file_name) > (sizeof(struct fsRecord_header->fName)- 1))
+    if(strlen(file_name) > (sizeof *h->fName)- 1))
     {
         debug_ustar("File name is too long.");
-        return false;
+        return 0;
     }
 
-    memset(h, 0, sizeof *h);
+
+    memset(h, 0, sizeof struct fsRecord_header);
 
     strlcpy(h->fName, file_name, sizeof h->fName);
 
+    strlcpy(h->eyecatch, "FIRE", sizeof h->eyecatch);
 
     strlcpy(h->uid, "00000000", sizeof h->uid);
     strlcpy(h->guid, "00000000", sizeof h->guid);
 
     snprintf(h->fsSize, sizeof h->fsSize, "%lu", inFsSize);
 
-    snprintf(h->mtime, sizeof h->mtime, "%lu" time(NULL));
+    snprintf(h->mtime, sizeof h->mtime, "%lu", time(NULL));
 
     //Only care about type if it's a directory. TODO for sending to this function
     h->isDirectory = inIsDirectory;
@@ -275,7 +298,7 @@ bool init_fsRecord(const char *file_name, char inIsDirectory, long inFsSize, cha
     strlcpy(h->gname, "root", sizeof h->gname);
     strlcpy(h->uname, "root", sizeof h->uname);
 
-    return true;
+    return 1;
 }
 
 
@@ -403,6 +426,12 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
+
+                            //check if file actually exists
+                            //mmove all preceding files if any exist
+                            //
+
+
   /* STUB */
   return -1;
 }
