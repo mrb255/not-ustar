@@ -238,102 +238,50 @@
 
 /* End of helper functions */
 
+char isDirectory_fsRecord(void *fsptr, const char *path)
+{
+    //TODO: see if the last character is a slash or whatever
+    //returning 0 right now (meaning it's not a directory), but need to add some metrics to check.
+    return '0';
+}
 
-void debug_ustar(const char *statement)
+void debug_ustar(const char *statement) //Literally just a print statement.
 {
     printf("%s\n", statement);
 }
 
 
-//TODO: add 512 block of "FIREFIREFIRE..." data
-
-void check_fsRecord_for_fire(void *fsptr)
+int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSize)
 {
-
-
-
-    //if first 512 blocks <> "FIRE"
-        // initialize structure and make reserve first 512 blocks to say "FIRE"
-    //else do nothing. Has already been initialized.
-
-
-
-}
-
-int checkFsInit(void *fsptr, size_t fssize)
-{
-
-    if(!(fsptr))
-    {
-
-    //die
-    debug_ustar("Null pointer has been passed.");
-    return -1;
-
-    }
-    if(fsptr->eyecatch != "FIRE")
-    {
-    //initialize as fspointer
-    //referencing an uninitialized fsptr vs init pointer.
-
-
-
-    }
-
-//struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
-if((memcmp(fsptr, "FIRES", 6)) != 0)
-{
-// file system has not been initialized.
-debug_ustar("Fs is trying to initialize.");
-    strncpy(fsptr, "FIRES", sizeof(struct fsRecord_header));
-
-
-    //add statement to check if fsptr has been initialized as fsRecord -> if not, initialize
-    //if not
-
-
-
-}
-
-}
-
-
-
-int init_fsRecord(void *fsptr, const char *file_name, char isDirectory, size_t inFsSize)
-{
-
-debug_ustar("I don't think this is called at all. (init_fsRecord)");
-
-checkFsInit(fsptr);
+    debug_ustar("I don't think this is called at all. (init_fsRecord)");
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
-    //strip "antisocial prefixes here
+    //strip "antisocial prefixes" here
 
-    if(strlen(file_name) > (sizeof h->fName)- 1)
+    if(strlen(path) > (sizeof h->fName)- 1)
     {
         debug_ustar("File name is too long.");
         return 0;
     }
-
+    else if(memcmp(h->eyecatch,"FIRES", 6) != 0) //pointer has already been initialized. Die.
+    {
+        return 0;
+    }
 
     memset(h, 0, sizeof(struct fsRecord_header));
 
-
     //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
-    strncpy(h->fName, file_name, sizeof h->fName);
-
+    strncpy(h->fName, path, sizeof h->fName);
     strncpy(h->eyecatch, "FIRES", sizeof h->eyecatch);
-
     strncpy(h->uid, "00000000", sizeof h->uid);
     strncpy(h->gid, "00000000", sizeof h->gid);
-
     snprintf(h->fsSize, sizeof h->fsSize, "%lu", inFsSize);
-
     snprintf(h->mtime, sizeof h->mtime, "%lu", time(NULL));
 
-    //Only care about type if it's a directory. TODO for sending to this function
+    //The "check if directory" function (which needs to be written)
+    //should be called before this function.
     h->isDirectory = isDirectory;
 
     //TODO (maybe): command for finding group and usernames
@@ -343,6 +291,33 @@ checkFsInit(fsptr);
     return 1;
 }
 
+
+int checkFsInit(void *fsptr, size_t fssize, const char* path)
+{
+    if(!(fsptr)) //die
+    {
+        debug_ustar("Null pointer has been passed.");
+        return -1;
+    }
+
+    struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+
+    if(memcmp(h->eyecatch, "FIRE", 6) != 0)
+    {
+        char dir = isDirectory_fsRecord(fsptr, path); //This function is not complete.
+        init_fsRecord(fsptr, path, dir,fssize);
+    }
+
+    if((memcmp(fsptr, "FIRES", 6)) != 0) //file system has not been initialized.
+    {
+        debug_ustar("Fs is trying to initialize.");
+        strncpy(fsptr, "FIRES", sizeof(struct fsRecord_header));
+
+        //add statement to check if fsptr has been initialized as fsRecord -> if not, initialize
+        //if not
+    }
+    return 0;
+}
 
 
 
@@ -374,52 +349,34 @@ checkFsInit(fsptr);
 */
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,uid_t uid, gid_t gid,
 const char *path, struct stat *stbuf)
+    {
+        //This is an implementation of ustar parse_header
+        debug_ustar("get attr is called");
+        debug_ustar(path);
 
-          {
+        checkFsInit(fsptr, fssize, path);
 
-          debug_ustar("get attr is called");
-          debug_ustar(path);
+        const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 
-          checkFsInit(fsptr);
+        //What is "size_ul", not sure we need it.
+        //Check for file name string length
 
+        if ((memcmp(h->eyecatch, "FIRES", 6)) != 0)
+        {
+            debug_ustar("not a not-ustar archive.");
+            return -1;
+        }
 
-          //*stbuf-> //need to set this to return stats
+        debug_ustar("memcmp passed in get attr");
+        struct timespec ts;
+        timespec_get(&ts, TIME_UTC);
 
-          const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+        stbuf->st_ctim = ts;
 
-          //What is "size_ul", not sure we need it.
-          //Check for file name string length
+        debug_ustar("get attr passed");
 
-          if ((memcmp(h->eyecatch, "FIRES", 6)) != 0)
-          {
-          debug_ustar("not a not-ustar archive.");
-          return -1;
-          }
-
-          debug_ustar("memcmp passed in get attr");
-          struct timespec ts;
-
-          timespec_get(&ts, TIME_UTC);
-
-
-
-          stbuf->st_ctim = ts;
-
-
-          //*path = h->fName;
-          //*fssize = 666;
-                          //TODO: implement version of "ustar_parse_header" here
-
-//               if(strlen(file_name) > (sizeof h->fName)- 1)
-//    {
-//        debug_ustar("File name is too long.");
-//        return 0;
-//    }
-
-debug_ustar("get attr passed");
-
-  /* STUB */
-  return 0;
+        /* STUB */
+        return 0;
 }
 
 /* Implements an emulation of the readdir system call on the filesystem
@@ -461,13 +418,11 @@ debug_ustar("get attr passed");
 int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
 
-debug_ustar("readdr has been called");
-checkFsInit(fsptr);
-
-
+    debug_ustar("readdr has been called");
+    checkFsInit(fsptr, fssize, path);
 
   /* STUB */
-  return -1;
+    return -1;
 }
 
 /* Implements an emulation of the mknod system call for regular files
@@ -490,10 +445,8 @@ checkFsInit(fsptr);
 int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-                        debug_ustar("mknot called");
-                        checkFsInit(fsptr);
-
-
+    debug_ustar("mknot called");
+    checkFsInit(fsptr, fssize, path);
 
   /* STUB */
   return -1;
@@ -514,9 +467,8 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-debug_ustar("ulink called");
-
-                        checkFsInit(fsptr);
+    debug_ustar("ulink called");
+    checkFsInit(fsptr, fssize, path);
 
                             //check if file actually exists
                             //mmove all preceding files if any exist
@@ -544,10 +496,8 @@ debug_ustar("ulink called");
 */
 int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
-debug_ustar("rmdir is called");
-
-
-                        checkFsInit(fsptr);
+    debug_ustar("rmdir is called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -567,9 +517,8 @@ debug_ustar("rmdir is called");
 int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-
-debug_ustar("mkdir called");
-                        checkFsInit(fsptr);
+    debug_ustar("mkdir called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -593,9 +542,8 @@ debug_ustar("mkdir called");
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
 
-
-debug_ustar("fs rename called");
-                         checkFsInit(fsptr);
+    debug_ustar("fs rename called");
+    checkFsInit(fsptr, fssize, from);
   /* STUB */
   return -1;
 }
@@ -619,9 +567,8 @@ debug_ustar("fs rename called");
 int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
                            const char *path, off_t offset) {
 
-debug_ustar("trunc called");
-
-                           checkFsInit(fsptr);
+    debug_ustar("trunc called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -655,8 +602,8 @@ debug_ustar("trunc called");
 int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path) {
 
-debug_ustar("fs open called");
-                       checkFsInit(fsptr);
+    debug_ustar("fs open called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -679,8 +626,8 @@ debug_ustar("fs open called");
 int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
 
-debug_ustar("fs read called");
-                       checkFsInit(fsptr);
+    debug_ustar("fs read called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -703,8 +650,8 @@ debug_ustar("fs read called");
 int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
 
-debug_ustar("fs write called");
-                        checkFsInit(fsptr);
+    debug_ustar("fs write called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -725,8 +672,8 @@ debug_ustar("fs write called");
 int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, const struct timespec ts[2]) {
 
-debug_ustar("utime stat called");
-                          checkFsInit(fsptr);
+    debug_ustar("utime stat called");
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -756,9 +703,11 @@ debug_ustar("utime stat called");
 */
 int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
                          struct statvfs* stbuf) {
-debug_ustar("statfs called");
+    debug_ustar("statfs called");
+    //checkFsInit(fsptr, fssize, );
 
-                         checkFsInit(fsptr);
   /* STUB */
-  return -1;
+  //Orig def returns -1. Just returning 0 right now so we can get on with debugging.
+  //return -1;
+  return 0;
 }
