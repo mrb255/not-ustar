@@ -38,7 +38,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <fsRecord.h>
+#include "fsRecord.h"
 
 
 /* The filesystem you implement must support all the 13 operations
@@ -264,28 +264,30 @@ void check_fsRecord_for_fire(void *fsptr)
 int init_fsRecord(const char *file_name, char inIsDirectory, long inFsSize, char fsHeader[512])
 {
 
-    //struct fsRecord_header
-    struct ustar_header *h = (struct ustar_header *) header;
+
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsHeader;
 
     //strip "antisocial prefixes here
 
-    if(strlen(file_name) > (sizeof *h->fName)- 1))
+    if(strlen(file_name) > (sizeof h->fName)- 1)
     {
         debug_ustar("File name is too long.");
         return 0;
     }
 
 
-    memset(h, 0, sizeof struct fsRecord_header);
+    memset(h, 0, sizeof(struct fsRecord_header));
 
-    strlcpy(h->fName, file_name, sizeof h->fName);
 
-    strlcpy(h->eyecatch, "FIRE", sizeof h->eyecatch);
+    //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
-    strlcpy(h->uid, "00000000", sizeof h->uid);
-    strlcpy(h->guid, "00000000", sizeof h->guid);
+    strncpy(h->fName, file_name, sizeof h->fName);
+
+    strncpy(h->eyecatch, "FIRE", sizeof h->eyecatch);
+
+    strncpy(h->uid, "00000000", sizeof h->uid);
+    strncpy(h->gid, "00000000", sizeof h->gid);
 
     snprintf(h->fsSize, sizeof h->fsSize, "%lu", inFsSize);
 
@@ -295,8 +297,8 @@ int init_fsRecord(const char *file_name, char inIsDirectory, long inFsSize, char
     h->isDirectory = inIsDirectory;
 
     //TODO (maybe): command for finding group and usernames
-    strlcpy(h->gname, "root", sizeof h->gname);
-    strlcpy(h->uname, "root", sizeof h->uname);
+    strncpy(h->gname, "root", sizeof h->gname);
+    strncpy(h->uname, "root", sizeof h->uname);
 
     return 1;
 }

@@ -5,10 +5,10 @@ struct fsRecord_header
 
     char fName[255];
     // we don't care about security
-    char uid[8]
-    char gid[8]
-    char fsSize[12]
-    char mtime[12]
+    char uid[8];
+    char gid[8];
+    char fsSize[12];
+    char mtime[12];
 
     char chksum[8];
     char isDirectory;
