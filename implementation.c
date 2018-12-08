@@ -250,12 +250,36 @@ void debug_ustar(const char *statement) //Literally just a print statement.
     printf("%s\n", statement);
 }
 
+int findNextFreeBlock(void *fsptr, size_t fssize)
+{
+    struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+
+    // TODO: read in size of file (which may take up multiple blocks), and skip those blocks if it takes up more than one
+    // if a file contains "FIRE" it could kill this.
+    debug_ustar("find free block is called");
+    for(int i = 1; fssize < (i*512); i++)
+    {
+        if(memcmp(&(h[i].eyecatch), "FIRES", 6) != 0)
+        {
+            debug_ustar("found free block");
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+
 
 int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSize)
 {
     debug_ustar("I don't think this is called at all. (init_fsRecord)");
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+
+    int incBlock = findNextFreeBlock(fsptr, inFsSize);
+
+    struct fsRecord_header *workingBlock = h+incBlock;
 
     //strip "antisocial prefixes" here
 
@@ -264,29 +288,33 @@ int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSi
         debug_ustar("File name is too long.");
         return 0;
     }
-    else if(memcmp(h->eyecatch,"FIRES", 6) != 0) //pointer has already been initialized. Die.
+    else if(memcmp(&(workingBlock->eyecatch),"FIRES", 6) != 0) //pointer has already been initialized. Die.
     {
+        debug_ustar("Pointer has already been initialized. Dying.");
         return 0;
     }
 
-    memset(h, 0, sizeof(struct fsRecord_header));
+    memset(&(workingBlock), 0, sizeof(struct fsRecord_header));
 
     //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
-    strncpy(h->fName, path, sizeof h->fName);
-    strncpy(h->eyecatch, "FIRES", sizeof h->eyecatch);
-    strncpy(h->uid, "00000000", sizeof h->uid);
-    strncpy(h->gid, "00000000", sizeof h->gid);
-    snprintf(h->fsSize, sizeof h->fsSize, "%lu", inFsSize);
-    snprintf(h->mtime, sizeof h->mtime, "%lu", time(NULL));
+    strncpy(h[incBlock].fName, path, sizeof h->fName);
+    strncpy(h[incBlock].eyecatch, "FIRES", sizeof(h->eyecatch));
+
+    //printf(sizeof(h->eyecatch));
+    debug_ustar("should be printing something above");
+    strncpy(h[incBlock].uid, "00000000", sizeof h->uid);
+    strncpy(h[incBlock].gid, "00000000", sizeof h->gid);
+    snprintf(h[incBlock].fsSize, sizeof h->fsSize, "%lu", inFsSize);
+    snprintf(h[incBlock].mtime, sizeof h->mtime, "%lu", time(NULL));
 
     //The "check if directory" function (which needs to be written)
     //should be called before this function.
-    h->isDirectory = isDirectory;
+    h[incBlock].isDirectory = isDirectory;
 
     //TODO (maybe): command for finding group and usernames
-    strncpy(h->gname, "root", sizeof h->gname);
-    strncpy(h->uname, "root", sizeof h->uname);
+    strncpy(h[incBlock].gname, "root", sizeof h->gname);
+    strncpy(h[incBlock].uname, "root", sizeof h->uname);
 
     return 1;
 }
@@ -302,16 +330,27 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
-    if(memcmp(h->eyecatch, "FIRE", 6) != 0)
-    {
-        char dir = isDirectory_fsRecord(fsptr, path); //This function is not complete.
-        init_fsRecord(fsptr, path, dir,fssize);
-    }
 
-    if((memcmp(fsptr, "FIRES", 6)) != 0) //file system has not been initialized.
+
+    //debug_ustar("lien 331");
+    if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
         debug_ustar("Fs is trying to initialize.");
-        strncpy(fsptr, "FIRES", sizeof(struct fsRecord_header));
+        strncpy((char *)h, "FIRES", 6);
+
+        //strncpy(h[0], "FIRES", 6);
+        //init_fsRecord(fsptr, path, dir,fssize);
+    }
+
+
+    int nextFreeBlock = findNextFreeBlock(fsptr, fssize);
+
+    struct fsRecord_header *workingBlock = h+nextFreeBlock;
+
+    if((memcmp(&(workingBlock->eyecatch), "FIRES", sizeof(struct fsRecord_header))) != 0) //fsRecord has not been initialized
+    {
+        char dir = isDirectory_fsRecord(fsptr, path); //This function is not complete.
+        init_fsRecord(fsptr, path, dir, fssize);
 
         //add statement to check if fsptr has been initialized as fsRecord -> if not, initialize
         //if not
@@ -361,7 +400,11 @@ const char *path, struct stat *stbuf)
         //What is "size_ul", not sure we need it.
         //Check for file name string length
 
-        if ((memcmp(h->eyecatch, "FIRES", 6)) != 0)
+
+        //int int nextFreeBlock = findNextFreeBlock(fsptr);
+
+        debug_ustar("passed checkfsinit");
+        if ((memcmp(&(h->eyecatch), "FIRES", 6)) != 0)
         {
             debug_ustar("not a not-ustar archive.");
             return -1;
