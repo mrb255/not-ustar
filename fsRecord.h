@@ -8,6 +8,7 @@ struct fsRecord_header
     char uid[8];
     char gid[8];
     char fsSize[12];
+    char atime[12];
     char mtime[12];
 
     char chksum[8];
@@ -17,5 +18,5 @@ struct fsRecord_header
     char uname[32];
     char gname[32];
 
-    char padding[38];
+    char padding[26];
 };

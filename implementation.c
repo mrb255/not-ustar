@@ -272,6 +272,26 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
     return -1;
 }
 
+// Searches whole filesystem for a file with fName value equal to 'path'
+int findFileBlock(void *fsptr, size_t fssize, const char *path){
+	printf("findFileBlock( %p, %lu, %s ) called\n", fsptr, fssize, path);
+
+    struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+
+	for(int i = 1; fssize > (i*512); i++)
+    {
+        if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
+        {
+			if(!strncmp(h[i-1].fName, path, strlen(path))){
+				printf("findFileBlock: found file: %s at block %i\n", path, i-1);
+            	return i-1;
+			}
+            
+        }
+    }
+	return FAILURE;
+}
+
 
 
 int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSize)
@@ -340,13 +360,12 @@ int checkFsInit(void *fsptr, size_t fssize)
 
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
-        debug_ustar("checkFSInit: Fs is trying to initialize.");
+        debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
 		return init_fsRecord(fsptr, "/.", 't', fssize);				// What do we call root directory?
 		
         //strncpy((char *)h, "FIRES", 6);
     }
 	else{
-		debug_ustar("checkFsInit: Filesystem has already been initialized.");
 		return TRUE;
 	}
 
@@ -423,19 +442,30 @@ const char *path, struct stat *stbuf)
         checkFsInit(fsptr, fssize);
 
         const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+		int offset = findFileBlock(fsptr, fssize, path);
+		if(offset == -1){
+			printf("Error: %s not found.\n", path);
+			*errnoptr = ENOENT;
+			return -1;
+		}
+
+		__mode_t mode = 0100000;			// Is file 
+		if(h[offset].isDirectory == 't'){	
+			mode = 0040000;					// Is directory
+		}
 
         //What is "size_ul", not sure we need it.
         //Check for file name string length
 
-		// stbuf->st_uid = NULL;
-		// stbuf->st_gid = NULL;
-		// stbuf->st_mode = NULL;
-		// stbuf->st_nlink = NULL;
-      	stbuf->st_atime = time(NULL);
-      	stbuf->st_mtime = time(NULL);
+		stbuf->st_uid = (__uid_t) h[offset].uid;
+		stbuf->st_gid = (__gid_t) h[offset].gid;
+		stbuf->st_mode = mode;
+		//stbuf->st_nlink = NULL;
+		//stbuf->st_size = NULL;
+      	stbuf->st_atime = (time_t) h[offset].atime;
+      	stbuf->st_mtime = (time_t) h[offset].mtime;
 
-        debug_ustar("get attr passed");
-
+        printf("__myfs_getattr_implem - SUCCESS");
         return 0;
 }
 
@@ -478,7 +508,7 @@ const char *path, struct stat *stbuf)
 int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
 
-    debug_ustar("readdr has been called");
+    debug_ustar("readdir has been called");
     checkFsInit(fsptr, fssize);
 
   /* STUB */
@@ -505,7 +535,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-    debug_ustar("mknot called");
+    debug_ustar("mknod called");
     checkFsInit(fsptr, fssize);
 
   /* STUB */
