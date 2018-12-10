@@ -243,7 +243,7 @@ char isDirectory_fsRecord(void *fsptr, const char *path)
 {
     //TODO: see if the last character is a slash or whatever
     //returning 0 right now (meaning it's not a directory), but need to add some metrics to check.
-    return '0';
+    return "0";
 }
 
 void debug_ustar(const char *statement) //Literally just a print statement.
@@ -268,7 +268,7 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
             return i-1;
         }
     }
-
+    printf("next free block not found.");
     return -1;
 }
 
@@ -280,13 +280,13 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 	for(int i = 1; fssize > (i*512); i++)
     {
-        if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
+        if(memcmp(&(h[i-1].eyecatch), "FIRES", 5) == 0)
         {
-			if(!strncmp(h[i-1].fName, path, strlen(path))){
+			if(!strncmp(h[i-1].fName, path, sizeof(h->fName))){
 				printf("findFileBlock: found file: %s at block %i\n", path, i-1);
             	return i-1;
 			}
-            
+
         }
     }
 	return FAILURE;
@@ -294,7 +294,7 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 
 
-int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSize)
+int init_fsRecord(void *fsptr, const char *path, const char *argIsDirectory, size_t inFsSize)
 {
     debug_ustar("init_fsRecord called");
 
@@ -311,7 +311,7 @@ int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSi
 
     //strip "antisocial prefixes" here
 
-    if(strlen(path) > (sizeof h->fName)- 1)
+    if(strlen(path) > (sizeof(h->fName)- 1))
     {
         debug_ustar("File name is too long.");
         return FAILURE;
@@ -326,29 +326,32 @@ int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSi
 
     //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
-	printf("Initializing header at block: %i\n", incBlock);
+
+	printf("Initializing header for %s at block: %i\n",path, incBlock);
+
 	strncpy(h[incBlock].eyecatch, "FIRES", sizeof(h->eyecatch));
-    strncpy(h->fName, path, sizeof h->fName);
-    
-    strncpy(h[incBlock].uid, "user0000", sizeof h->uid);
+    strncpy(h[incBlock].fName, path, sizeof(h->fName));
+
+
+    strncpy(h[incBlock].uid, "user0000", sizeof(h->uid));
     strncpy(h[incBlock].gid, "group4b0", sizeof h->gid);
-    snprintf(h[incBlock].fsSize, sizeof h->fsSize, "%lu", inFsSize);
-    snprintf(h[incBlock].mtime, sizeof h->mtime, "%lu", time(NULL));
+    snprintf(h[incBlock].fsSize, sizeof(h->fsSize), "%lu", inFsSize);
+    snprintf(h[incBlock].mtime, sizeof(h->mtime), "%lu", time(NULL));
 
     //The "check if directory" function (which needs to be written)
     //should be called before this function.
-    strncpy(&h[incBlock].isDirectory, &isDirectory, sizeof h->isDirectory);;
+    strncpy(h[incBlock].isDirectory, argIsDirectory, sizeof(h->isDirectory)); //this line isn't working.
 
     //TODO (maybe): command for finding group and usernames
-    strncpy(h[incBlock].gname, "root", sizeof h->gname);
-    strncpy(h[incBlock].uname, "root", sizeof h->uname);
+    strncpy(h[incBlock].gname, "root", sizeof(h->gname));
+    strncpy(h[incBlock].uname, "root", sizeof(h->uname));
 
     return TRUE;
 }
 
 // ONLY checks for an initialized block at fsptr
-// Do we need to call on every single function?
-int checkFsInit(void *fsptr, size_t fssize)
+// Do we need to call on every single function? -- Yes. Otherwise we'll never know if it's actually initialized.
+int checkFsInit(void *fsptr, size_t fssize, const char* path)
 {
     if(!(fsptr)) //die
     {
@@ -361,18 +364,23 @@ int checkFsInit(void *fsptr, size_t fssize)
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
         debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
-		return init_fsRecord(fsptr, "/.", 't', fssize);				// What do we call root directory?
-		
-        //strncpy((char *)h, "FIRES", 6);
+        //This should be to initialize the file system, NOT a single record.
+        strncpy((char *)h, "FIRES", 6);
     }
-	else{
+
+	if(findFileBlock(fsptr, fssize, path) == -1) //check if file has been initialized.
+	{
+
+        printf("Finding initializing file in checkFsInit.");
+        init_fsRecord(fsptr, path, isDirectory_fsRecord(fsptr, path), fssize);
+
 		return TRUE;
 	}
 
 
     // int nextFreeBlock = findNextFreeBlock(fsptr, fssize);
 
-	
+
     // struct fsRecord_header *workingBlock = h+nextFreeBlock;
 
     // if((memcmp(&(workingBlock->eyecatch), "FIRES", sizeof(struct fsRecord_header))) != 0) //fsRecord has not been initialized
@@ -417,19 +425,19 @@ int checkFsInit(void *fsptr, size_t fssize)
 
 
    struct stat {          Actual 'man 2 stat' definition
-    dev_t     st_dev;     ID of device containing file 
-    ino_t     st_ino;     inode number 
-    mode_t    st_mode;    protection 
-    nlink_t   st_nlink;   number of hard links 
-    uid_t     st_uid;     user ID of owner 
-    gid_t     st_gid;     group ID of owner 
-    dev_t     st_rdev;    device ID (if special file) 
-    off_t     st_size;    total size, in bytes 
-    blksize_t st_blksize; blocksize for file system I/O 
-    blkcnt_t  st_blocks;  number of 512B blocks allocated 
-    time_t    st_atime;   time of last access 
-    time_t    st_mtime;   time of last modification 
-    time_t    st_ctime;   time of last status change 
+    dev_t     st_dev;     ID of device containing file
+    ino_t     st_ino;     inode number
+    mode_t    st_mode;    protection
+    nlink_t   st_nlink;   number of hard links
+    uid_t     st_uid;     user ID of owner
+    gid_t     st_gid;     group ID of owner
+    dev_t     st_rdev;    device ID (if special file)
+    off_t     st_size;    total size, in bytes
+    blksize_t st_blksize; blocksize for file system I/O
+    blkcnt_t  st_blocks;  number of 512B blocks allocated
+    time_t    st_atime;   time of last access
+    time_t    st_mtime;   time of last modification
+    time_t    st_ctime;   time of last status change
 };
 
 */
@@ -439,18 +447,19 @@ const char *path, struct stat *stbuf)
         //This is an implementation of ustar parse_header
     	printf("__myfs_getattr_implem( %p, %lu, %p, %i, %i, %s)\n", fsptr, fssize, errnoptr, uid, gid, path);
 
-        checkFsInit(fsptr, fssize);
+        checkFsInit(fsptr, fssize, path);
 
         const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 		int offset = findFileBlock(fsptr, fssize, path);
+
 		if(offset == -1){
-			printf("Error: %s not found.\n", path);
+			printf("Get attribute -- error: %s not found.\n", path);
 			*errnoptr = ENOENT;
 			return -1;
 		}
 
-		__mode_t mode = 0100000;			// Is file 
-		if(h[offset].isDirectory == 't'){	
+		__mode_t mode = 0100000;			// Is file
+		if(h[offset].isDirectory == 't'){
 			mode = 0040000;					// Is directory
 		}
 
@@ -509,7 +518,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
 
     debug_ustar("readdir has been called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
 
   /* STUB */
     return -1;
@@ -536,7 +545,7 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
     debug_ustar("mknod called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
 
   /* STUB */
   return -1;
@@ -558,7 +567,7 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
     debug_ustar("ulink called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
 
                             //check if file actually exists
                             //mmove all preceding files if any exist
@@ -587,7 +596,7 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
     debug_ustar("rmdir is called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -608,7 +617,7 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
     debug_ustar("mkdir called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -633,7 +642,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
 
     debug_ustar("fs rename called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, from);
   /* STUB */
   return -1;
 }
@@ -658,7 +667,7 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
                            const char *path, off_t offset) {
 
     debug_ustar("trunc called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -693,7 +702,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path) {
 
     debug_ustar("fs open called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -717,7 +726,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
 
     debug_ustar("fs read called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -741,7 +750,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
 
     debug_ustar("fs write called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
@@ -763,7 +772,7 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, const struct timespec ts[2]) {
 
     debug_ustar("utime stat called");
-    checkFsInit(fsptr, fssize);
+    checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
 }
