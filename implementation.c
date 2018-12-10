@@ -193,8 +193,6 @@
 
 char isDirectory_fsRecord(void *fsptr, const char *path)
 {
-    //TODO: see if the last character is a slash or whatever
-    //returning 0 right now (meaning it's not a directory), but need to add some metrics to check.
     return '0';
 }
 
@@ -219,16 +217,13 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
 {
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
-    // TODO: read in size of file (which may take up multiple blocks), and skip those blocks if it takes up more than one
-    // if a file contains "FIRE" it could kill this.
-
-	printf("findNextFreeBlock( %p, %lu) called\n", fsptr, fssize);
+	// printf("findNextFreeBlock( %p, %lu) called\n", fsptr, fssize);
     for(int i = 1; fssize > (i*BLOCKSIZE); i++)
     {
 		// printf("loop\n");
         if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) != 0)
         {
-            printf("findNextFreeBlock: found free block at: %i\n", i-1);
+            // printf("findNextFreeBlock: found free block at: %i\n", i-1);
             return i-1;
         }
     }
@@ -238,7 +233,7 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
 
 // Searches whole filesystem for a file with fName value equal to 'path'
 int findFileBlock(void *fsptr, size_t fssize, const char *path){
-	printf("findFileBlock( %p, %lu, %s ) called\n", fsptr, fssize, path);
+	// printf("findFileBlock( %p, %lu, %s ) called\n", fsptr, fssize, path);
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
@@ -247,7 +242,7 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
         if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
         {
 			if(!strncmp(h[i-1].fName, path, sizeof(h->fName))){
-				printf("findFileBlock: found file: %s at block %i\n", path, i-1);
+				// printf("findFileBlock: found file: %s at block %i\n", path, i-1);
             	return i-1;
 			}
 
@@ -260,26 +255,26 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 int init_fsRecord(void *fsptr, size_t fsSize, const char *path, char argIsDirectory, size_t fileSize)
 {
-    debug_ustar("init_fsRecord called");
+    // debug_ustar("init_fsRecord called");
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
 	// incBlock is offset from fsptr where file of size inFsSize can fit
     int incBlock = findNextFreeBlock(fsptr, fsSize);
 	if(incBlock == -1){
-		debug_ustar("findNextFreeBlock failed.");
+		// debug_ustar("findNextFreeBlock failed.");
 		return FAILURE;
 	}
 
     //strip "antisocial prefixes" here
     if(strlen(path) > (sizeof(h->fName)- 1))
     {
-        debug_ustar("File name is too long.");
+        // debug_ustar("File name is too long.");
         return FAILURE;
     }
     //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
 
-	printf("Initializing header for %s at block: %i\n",path, incBlock);
+	// printf("Initializing header for %s at block: %i\n",path, incBlock);
 
 	strncpy(h[incBlock].eyecatch, "FIRES", sizeof(h->eyecatch));
 
@@ -308,7 +303,7 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 {
     if(!(fsptr)) //die
     {
-        debug_ustar("checkFSInit FAILED: Null pointer has been passed.");
+        // debug_ustar("checkFSInit FAILED: Null pointer has been passed.");
         return FAILURE;
     }
 
@@ -316,7 +311,7 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
-        debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
+        // debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
         strncpy((char *)h, "FIRES", 6);
 		int dot = init_fsRecord(fsptr, fssize, "/.", 't', 0);				// What do we call root directory?
 		int dot_dot = init_fsRecord(fsptr, fssize, "/..", 't', 0);
@@ -395,9 +390,6 @@ const char *path, struct stat *stbuf)
 		if(h[offset].isDirectory == 't'){
 			mode = 0040000;					// Is directory
 		}
-
-        //What is "size_ul", not sure we need it.
-        //Check for file name string length
 
 		stbuf->st_uid = (__uid_t) h[offset].uid;
 		stbuf->st_gid = (__gid_t) h[offset].gid;
