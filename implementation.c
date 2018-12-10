@@ -43,6 +43,7 @@
 #define TRUE 1
 #define FALSE 0
 #define FAILURE -1
+#define BLOCKSIZE 512
 
 
 /* The filesystem you implement must support all the 13 operations
@@ -251,6 +252,18 @@ void debug_ustar(const char *statement) //Literally just a print statement.
     printf("%s\n", statement);
 }
 
+size_t calculateNumBlocksInFile(size_t size)
+{
+    size_t blocks = 1;  //All files have at least one block
+    if(size <= PADDING_SIZE) return blocks; //Only one in this case
+
+    size -= PADDING_SIZE;
+    float extraBlocks = (float) size / (float) BLOCKSIZE;
+    blocks += (size_t) extraBlocks; //truncs fractional blocks, take care of that next
+    if(extraBlocks > (size_t) extraBlocks) blocks++;
+    return blocks;
+}
+
 int findNextFreeBlock(void *fsptr, size_t fssize)
 {
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
@@ -259,7 +272,7 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
     // if a file contains "FIRE" it could kill this.
 
 	printf("findNextFreeBlock( %p, %lu) called\n", fsptr, fssize);
-    for(int i = 1; fssize > (i*512); i++)
+    for(int i = 1; fssize > (i*BLOCKSIZE); i++)
     {
 		printf("loop\n");
         if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) != 0)
@@ -278,7 +291,7 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
-	for(int i = 1; fssize > (i*512); i++)
+	for(int i = 1; fssize > (i*BLOCKSIZE); i++)
     {
         if(memcmp(&(h[i-1].eyecatch), "FIRES", 5) == 0)
         {
@@ -536,7 +549,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	int names_count = 0;
 
 	// iterate through FS blocks.
-	for( int i = 1; fssize > (i*512); i++){
+	for( int i = 1; fssize > (i*BLOCKSIZE); i++){
 		if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
         {
 			if(!strncmp(h[i-1].fName, path, strlen(path))){
@@ -613,16 +626,26 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *p
 int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-    debug_ustar("ulink called");
+    debug_ustar("unlink called");
     checkFsInit(fsptr, fssize, path);
 
-                            //check if file actually exists
-                            //mmove all preceding files if any exist
-                            //
+    int index = findFileBlock(fsptr, fssize, path);
+    if(index == FAILURE)
+    {
+        *errnoptr = EBADF;
+        return -1;
+    }
 
+    struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+    struct fsRecord_header *file = h+index;
+    const size_t filesize = atol(file->fsSize);
+    size_t numBlocks = calculateNumBlocksInFile(filesize);
+    memset(file, 0, numBlocks * BLOCKSIZE);
+    const char *dataSrc = ((char *) file) + numBlocks * BLOCKSIZE;
+    const size_t copy_len = fssize - (dataSrc - (const char *) fsptr); //Hopefully
+    memmove(file, dataSrc, copy_len);
 
-  /* STUB */
-  return -1;
+    return 0;
 }
 
 /* Implements an emulation of the rmdir system call on the filesystem
@@ -721,8 +744,29 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("trunc called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
-  return -1;
+
+    int index = findFileBlock(fsptr, fssize, path);
+    if(index == FAILURE)
+    {
+        *errnoptr = EBADF;
+        return -1;
+    }
+
+    struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+    struct fsRecord_header *file = h+index;
+    const size_t filesize = atol(file->fsSize);
+    void *buffer = malloc(filesize);
+    memcpy(buffer, &(file->padding), filesize);
+    if(__myfs_unlink_implem(fsptr, fssize, errnoptr, path) == FAILURE) return -1;  //unlink sets errno on its own
+    if(init_fsRecord(fsptr, fssize, path, FALSE, offset) == FAILURE) return -1; //TODO: errno
+
+    index = findFileBlock(fsptr, fssize, path);
+    file = h+index;
+    size_t bytesToCopy = (filesize < offset) ? filesize : offset;
+    memcpy(&(file->padding), buffer, bytesToCopy);
+    free(buffer);
+
+    return 0;
 }
 
 /* Implements an emulation of the open system call on the filesystem
