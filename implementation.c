@@ -705,7 +705,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("fs open called");
     checkFsInit(fsptr, fssize, path);
-    
+
     if(findFileBlock(fsptr, fssize, path) == FAILURE)
     {
         *errnoptr = ENOENT;
@@ -845,8 +845,27 @@ int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
                          struct statvfs* stbuf) {
+    //TODO: Basic error checking. Not sure how/what to set errnoptr to.
+
+
     debug_ustar("statfs called");
-    //checkFsInit(fsptr, fssize, );
+
+    struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+
+    if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
+    {
+        debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
+        strncpy((char *)h, "FIRES", 6);
+    }
+
+    int usedBlocks = findNextFreeBlock(fsptr, fssize);
+    size_t freeBlocks = fssize - ((usedBlocks - 1) * sizeof(struct fsRecord_header));
+
+    stbuf->f_bsize = sizeof(struct fsRecord_header);
+    stbuf->f_blocks = (fssize / sizeof(struct fsRecord_header));
+    stbuf->f_bfree = (freeBlocks / sizeof(struct fsRecord_header));
+    stbuf->f_bavail = (freeBlocks / sizeof(struct fsRecord_header));
+    stbuf->f_namemax = sizeof(h->fName);
 
   /* STUB */
   //Orig def returns -1. Just returning 0 right now so we can get on with debugging.
