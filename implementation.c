@@ -322,8 +322,6 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 		int dot_dot = init_fsRecord(fsptr, fssize, "/..", 't', 0);
 		int slsh = init_fsRecord(fsptr, fssize, "/", 't', 0);
 
-		printf("dot: %i dot_dot: %i slash: %i", dot, dot_dot, slsh);
-
 		if(dot && dot_dot && slsh){
 			return TRUE;
 		}
@@ -331,19 +329,6 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 	else{
 		return TRUE;
 	}
-
-
-	// if(findFileBlock(fsptr, fssize, path) == -1) //check if file has been initialized.
-	// {
-
-
-        printf("Finding initializing file in checkFsInit.");
-
-        //init_fsRecord(fsptr, fssize, path, isDirectory_fsRecord(fsptr, path),0 );
-
-	// 	return TRUE;
-	// }
-
 }
 
 /* OUR FUNCTIONS */
@@ -389,8 +374,7 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,uid_t uid, gid_t gid,
 const char *path, struct stat *stbuf)
     {
-        //This is an implementation of ustar parse_header
-    	printf("__myfs_getattr_implem( %p, %lu, %i, %i, %i, %s)\n", fsptr, fssize, *errnoptr, uid, gid, path);
+    	// printf("__myfs_getattr_implem( %p, %lu, %i, %i, %i, %s)\n", fsptr, fssize, *errnoptr, uid, gid, path);
 
         if(!checkFsInit(fsptr, fssize, path)){
 			printf("Error: Filesystem cannot be initialized");
@@ -423,7 +407,7 @@ const char *path, struct stat *stbuf)
       	stbuf->st_atime = (time_t) h[offset].atime;
       	stbuf->st_mtime = (time_t) h[offset].mtime;
 
-        printf("__myfs_getattr_implem - SUCCESS\n");
+        // printf("__myfs_getattr_implem - SUCCESS\n");
         return 0;
 }
 
@@ -458,7 +442,7 @@ const char *path, struct stat *stbuf)
 int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
 
-    printf("__myfs_readdir_implem( %p, %lu, %i, %s) \n", fsptr, fssize, *errnoptr, path);
+    // printf("__myfs_readdir_implem( %p, %lu, %i, %s) \n", fsptr, fssize, *errnoptr, path);
     if(!checkFsInit(fsptr, fssize, path)){
 			printf("Error: Filesystem cannot be initialized");
 			return -1;
@@ -474,7 +458,6 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	for( int i = 1; fssize > (i*BLOCKSIZE); i++){
 		if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
         {
-			printf("%s ", h[i-1].fName);
 			if(!strncmp(h[i-1].fName, path, strlen(path))){
 				if(!strncmp(h[i-1].fName, "/.", strlen("/.")) || !strncmp(h[i-1].fName, "/..", strlen("/.."))){
 					//printf("__myfs_readdir_implem: NOT INCLUDING directory: %s at block %i\n", h[i-1].fName, i-1);
@@ -506,7 +489,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	*namesptr = names;
 
 
-	printf("__myfs_readdir_implem - SUCCESS\n");
+	// printf("__myfs_readdir_implem - SUCCESS\n");
     return names_count;
 }
 
@@ -522,7 +505,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *path)
 {
-    debug_ustar("mknod called");
+    // debug_ustar("mknod called");
     checkFsInit(fsptr, fssize, path);
 
     int status = init_fsRecord(fsptr, fssize, path, FALSE, 0);
@@ -545,7 +528,7 @@ int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *p
 int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
 
-    debug_ustar("unlink called");
+    // debug_ustar("unlink called");
     checkFsInit(fsptr, fssize, path);
 
     int index = findFileBlock(fsptr, fssize, path);
@@ -578,9 +561,9 @@ int __myfs_unlink_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path) {
-    debug_ustar("rmdir is called");
+    // debug_ustar("rmdir is called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
+
   return -1;
 }
 
@@ -593,7 +576,7 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 */
 int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr, const char *path)
 {
-    debug_ustar("mkdir called");
+    // debug_ustar("mkdir called");
     checkFsInit(fsptr, fssize, path);
 
     int status = init_fsRecord(fsptr, fssize, path, TRUE, 0);
@@ -619,9 +602,9 @@ int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr, const char *p
 int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
                          const char *from, const char *to) {
 
-    debug_ustar("fs rename called");
+    // debug_ustar("fs rename called");
     checkFsInit(fsptr, fssize, from);
-  /* STUB */
+
   return -1;
 }
 
@@ -638,7 +621,7 @@ int __myfs_rename_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
                            const char *path, off_t offset) {
 
-    debug_ustar("trunc called");
+    // debug_ustar("trunc called");
     checkFsInit(fsptr, fssize, path);
 
     int index = findFileBlock(fsptr, fssize, path);
@@ -687,7 +670,7 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path) {
 
-    debug_ustar("fs open called");
+    // debug_ustar("fs open called");
     checkFsInit(fsptr, fssize, path);
 
     if(findFileBlock(fsptr, fssize, path) == FAILURE)
@@ -711,7 +694,7 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
                        const char *path, char *buf, size_t size, off_t offset) {
 
-    debug_ustar("fs read called");
+    // debug_ustar("fs read called");
     checkFsInit(fsptr, fssize, path);
 
     int index = findFileBlock(fsptr, fssize, path);
@@ -745,7 +728,7 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
                         const char *path, const char *buf, size_t size, off_t offset) {
 
-    debug_ustar("fs write called");
+    // debug_ustar("fs write called");
     checkFsInit(fsptr, fssize, path);
 
     int index = findFileBlock(fsptr, fssize, path);
@@ -783,7 +766,7 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 int __myfs_utimens_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, const struct timespec ts[2]) {
 
-    debug_ustar("utime stat called");
+    // debug_ustar("utime stat called");
     checkFsInit(fsptr, fssize, path);
   /* STUB */
   return -1;
@@ -810,7 +793,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
     //TODO: Basic error checking. Not sure how/what to set errnoptr to.
 
 
-    debug_ustar("statfs called");
+    // debug_ustar("statfs called");
 
     const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 
@@ -829,8 +812,6 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
     stbuf->f_bavail = (freeBlocks / sizeof(struct fsRecord_header));
     stbuf->f_namemax = sizeof(h->fName);
 
-  /* STUB */
-  //Orig def returns -1. Just returning 0 right now so we can get on with debugging.
   //return -1;
   return 0;
 }
