@@ -40,9 +40,9 @@
 
 #include "fsRecord.h"
 
-#define TRUE 1;
-#define FALSE 0;
-#define FAILURE -1;
+#define TRUE 1
+#define FALSE 0
+#define FAILURE -1
 
 
 /* The filesystem you implement must support all the 13 operations
@@ -705,8 +705,13 @@ int __myfs_open_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("fs open called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
-  return -1;
+    
+    if(findFileBlock(fsptr, fssize, path) == FAILURE)
+    {
+        *errnoptr = ENOENT;
+        return -1;
+    }
+    return 0;
 }
 
 /* Implements an emulation of the read system call on the filesystem
