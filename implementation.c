@@ -294,36 +294,24 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 
 
-int init_fsRecord(void *fsptr, const char *path, char argIsDirectory, size_t inFsSize)
+int init_fsRecord(void *fsptr, size_t fsSize, const char *path, char argIsDirectory, size_t fileSize)
 {
     debug_ustar("init_fsRecord called");
-
     struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
 
 	// incBlock is offset from fsptr where file of size inFsSize can fit
-    int incBlock = findNextFreeBlock(fsptr, inFsSize);
+    int incBlock = findNextFreeBlock(fsptr, fsSize);
 	if(incBlock == -1){
 		debug_ustar("findNextFreeBlock failed.");
 		return FAILURE;
 	}
 
-    //struct fsRecord_header *workingBlock = h+incBlock;
-
     //strip "antisocial prefixes" here
-
     if(strlen(path) > (sizeof(h->fName)- 1))
     {
         debug_ustar("File name is too long.");
         return FAILURE;
     }
-    // else if(memcmp(&(workingBlock->eyecatch),"FIRES", 6) != 0) //pointer has already been initialized. Die.
-    // {
-    //     debug_ustar("Pointer has already been initialized. Dying.");
-    //     return FALSE;
-    // }
-
-    //memset(&(workingBlock), 0, sizeof(struct fsRecord_header));
-
     //TODO: Make sure to read n-1 when reading through the buffer, due to null terminators being placed by strncpy
 
 
@@ -336,7 +324,7 @@ int init_fsRecord(void *fsptr, const char *path, char argIsDirectory, size_t inF
     strncpy(h[incBlock].uid, "user0000", sizeof h->uid);
 
     strncpy(h[incBlock].gid, "group4b0", sizeof h->gid);
-    snprintf(h[incBlock].fsSize, sizeof(h->fsSize), "%lu", inFsSize);
+    snprintf(h[incBlock].fsSize, sizeof(h->fsSize), "%lu", fileSize);
     snprintf(h[incBlock].mtime, sizeof(h->mtime), "%lu", time(NULL));
 
     //The "check if directory" function (which needs to be written)
@@ -367,8 +355,8 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
         debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
-		int dot = init_fsRecord(fsptr, "/.", 't', fssize);				// What do we call root directory?
-		int dot_dot = init_fsRecord(fsptr, "/..", 't', fssize);
+		int dot = init_fsRecord(fsptr, fssize, "/.", 't', 0);				// What do we call root directory?
+		int dot_dot = init_fsRecord(fsptr, fssize, "/..", 't', 0);
 
 		printf("dot: %i dot_dot: %i", dot, dot_dot);
 
@@ -387,7 +375,7 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 	{
 
         printf("Finding initializing file in checkFsInit.");
-        init_fsRecord(fsptr, path, isDirectory_fsRecord(fsptr, path), fssize);
+        init_fsRecord(fsptr, fssize, path, isDirectory_fsRecord(fsptr, path),0 );
 
 		return TRUE;
 	}
@@ -471,7 +459,7 @@ const char *path, struct stat *stbuf)
         const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 		int offset = findFileBlock(fsptr, fssize, path);
 
-		if(offset == -1){
+		if(offset == FAILURE){
 			printf("Get attribute -- error: %s not found.\n", path);
 			*errnoptr = ENOENT;
 			return -1;
@@ -595,14 +583,19 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
    The error codes are documented in man 2 mknod.
 
 */
-int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr,
-                        const char *path) {
-
+int __myfs_mknod_implem(void *fsptr, size_t fssize, int *errnoptr, const char *path)
+{
     debug_ustar("mknod called");
     checkFsInit(fsptr, fssize, path);
 
-  /* STUB */
-  return -1;
+    int status = init_fsRecord(fsptr, fssize, path, FALSE, 0);
+    if(status == FAILURE)   //TODO: better communicate the exact error
+    {
+        *errnoptr = ENAMETOOLONG;
+        return -1;
+    }
+
+    return 0;
 }
 
 /* Implements an emulation of the unlink system call for regular files
@@ -667,13 +660,19 @@ int __myfs_rmdir_implem(void *fsptr, size_t fssize, int *errnoptr,
    The error codes are documented in man 2 mkdir.
 
 */
-int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr,
-                        const char *path) {
-
+int __myfs_mkdir_implem(void *fsptr, size_t fssize, int *errnoptr, const char *path)
+{
     debug_ustar("mkdir called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
-  return -1;
+
+    int status = init_fsRecord(fsptr, fssize, path, TRUE, 0);
+    if(status == FAILURE)
+    {
+        *errnoptr = ENAMETOOLONG;   //TODO: communicate the actual error
+        return -1;
+    }
+
+    return 0;
 }
 
 /* Implements an emulation of the rename system call on the filesystem
@@ -902,7 +901,7 @@ int __myfs_statfs_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("statfs called");
 
-    struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+    const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
