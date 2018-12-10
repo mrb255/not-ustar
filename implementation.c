@@ -734,8 +734,22 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("fs read called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
-  return -1;
+
+    int index = findFileBlock(fsptr, fssize, path);
+    if(index == FAILURE)
+    {
+        *errnoptr = ENOENT;
+        return -1;
+    }
+
+    const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+    const struct fsRecord_header *file = h+index;
+    const long filesize = atol(file->fsSize);
+    if(offset > filesize) return 0; //EOF, TODO: possible off by one?
+
+    const size_t bytesToRead = (filesize < size+offset) ? filesize : size+offset; //min(filesize, size+offset);
+    memcpy(buf, (void *) &(file->padding), bytesToRead);
+    return bytesToRead;
 }
 
 /* Implements an emulation of the write system call on the filesystem
@@ -758,8 +772,30 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     debug_ustar("fs write called");
     checkFsInit(fsptr, fssize, path);
-  /* STUB */
-  return -1;
+
+    int index = findFileBlock(fsptr, fssize, path);
+    if(index == FAILURE)
+    {
+        *errnoptr = EBADF;
+        return -1;
+    }
+
+    const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
+    const struct fsRecord_header *file = h+index;
+    const long filesize = atol(file->fsSize);
+
+    if(size + offset > filesize)
+    {
+        debug_ustar("Warning: write beyond file extent");  //TODO: call trunc instead of breaking?
+        return 0;   //write nothing, a violation of the standard?
+    }
+    else
+    {
+        char *fileData = (char *) &(file->padding);
+        char *writePtr = fileData + offset;
+        memcpy(writePtr, buf, size);
+        return size;
+    }
 }
 
 /* Implements an emulation of the utimensat system call on the filesystem
