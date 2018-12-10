@@ -225,7 +225,7 @@ int findNextFreeBlock(void *fsptr, size_t fssize)
 	printf("findNextFreeBlock( %p, %lu) called\n", fsptr, fssize);
     for(int i = 1; fssize > (i*BLOCKSIZE); i++)
     {
-		printf("loop\n");
+		// printf("loop\n");
         if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) != 0)
         {
             printf("findNextFreeBlock: found free block at: %i\n", i-1);
@@ -244,7 +244,7 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 	for(int i = 1; fssize > (i*BLOCKSIZE); i++)
     {
-        if(memcmp(&(h[i-1].eyecatch), "FIRES", 5) == 0)
+        if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
         {
 			if(!strncmp(h[i-1].fName, path, sizeof(h->fName))){
 				printf("findFileBlock: found file: %s at block %i\n", path, i-1);
@@ -317,7 +317,6 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
         debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
-
         strncpy((char *)h, "FIRES", 6);
 		int dot = init_fsRecord(fsptr, fssize, "/.", 't', 0);				// What do we call root directory?
 		int dot_dot = init_fsRecord(fsptr, fssize, "/..", 't', 0);
@@ -328,19 +327,22 @@ int checkFsInit(void *fsptr, size_t fssize, const char* path)
 		if(dot && dot_dot && slsh){
 			return TRUE;
 		}
-
     }
-//Commenting out as it breaks everything.
+	else{
+		return TRUE;
+	}
 
-	if(findFileBlock(fsptr, fssize, path) == -1) //check if file has been initialized.
-	{
+
+	// if(findFileBlock(fsptr, fssize, path) == -1) //check if file has been initialized.
+	// {
+
 
         printf("Finding initializing file in checkFsInit.");
 
         //init_fsRecord(fsptr, fssize, path, isDirectory_fsRecord(fsptr, path),0 );
 
-		return TRUE;
-	}
+	// 	return TRUE;
+	// }
 
 }
 
@@ -421,7 +423,7 @@ const char *path, struct stat *stbuf)
       	stbuf->st_atime = (time_t) h[offset].atime;
       	stbuf->st_mtime = (time_t) h[offset].mtime;
 
-        printf("__myfs_getattr_implem - SUCCESS");
+        printf("__myfs_getattr_implem - SUCCESS\n");
         return 0;
 }
 
@@ -463,7 +465,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	}
 
 	struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
-	char **names = NULL;
+	char **names = malloc(NULL);
 	size_t size_of_fName = 0;
 	int names_count = 0;
 
@@ -472,21 +474,29 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	for( int i = 1; fssize > (i*BLOCKSIZE); i++){
 		if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
         {
+			printf("%s ", h[i-1].fName);
 			if(!strncmp(h[i-1].fName, path, strlen(path))){
 				if(!strncmp(h[i-1].fName, "/.", strlen("/.")) || !strncmp(h[i-1].fName, "/..", strlen("/.."))){
-					printf("__myfs_readdir_implem: NOT INCLUDING directory: %s at block %i\n", h[i-1].fName, i-1);
+					//printf("__myfs_readdir_implem: NOT INCLUDING directory: %s at block %i\n", h[i-1].fName, i-1);
 					continue;
 				}
 				printf("__myfs_readdir_implem: found directory: %s at block %i\n", path, i-1);
-				printf("strlen(fName) = %lu, sizeof(fName) - %lu", strlen(h[i-1].fName), sizeof(h[i-1].fName) );
-				names_count++;											// Iterate number of strings in list
-				size_of_fName = strlen(h[i-1].fName);					// Get length of fName string
-				void * fName_str = malloc(size_of_fName);				// Allocate memory for fName string
-				names = realloc(names, (sizeof(void *))*names_count);	// Reallocate memory for pointer list
-				names[names_count-1] = fName_str;						// Set fName ptr to names_count-1 because of ++ at beginning
+				//printf("strlen(fName) = %lu, sizeof(fName) - %lu", strlen(h[i-1].fName), sizeof(h[i-1].fName) );
+				names_count++;												// Iterate number of strings in list
+				size_of_fName = (strlen(h[i-1].fName));						// Get length of fName string
+				char *fName_str = malloc(size_of_fName * sizeof(char));		// Allocate memory for fName string
+				strncpy(fName_str, h[i-1].fName, size_of_fName);			// Copy value of fName into mem-allocated pointer
+				names = realloc(names, (sizeof(void *))*names_count);		// Reallocate memory for pointer list
+				names[names_count-1] = fName_str;							// Set fName ptr to names_count-1 because of ++ at beginning
 			}
         }
 	}
+
+	printf("__myfs_readdir_implem: NAMES LIST: ");
+	for (int i = 0; i < names_count; i++){
+		printf("%s  ", (char *)names[i]);
+	}
+	printf("\n");
 
 	if(names == NULL){
 		printf("__myfs_readdir_implem: no files or directories found.");
@@ -495,7 +505,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 	namesptr = &names;
 
 
-	printf("__myfs_readdir_implem - SUCCESS");
+	printf("__myfs_readdir_implem - SUCCESS\n");
     return names_count;
 }
 
