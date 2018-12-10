@@ -419,7 +419,7 @@ const char *path, struct stat *stbuf)
 		stbuf->st_gid = (__gid_t) h[offset].gid;
 		stbuf->st_mode = mode;
 		//stbuf->st_nlink = NULL;
-		//stbuf->st_size = NULL;
+        stbuf->st_size = (__off_t) atol(h[offset].fsSize);
       	stbuf->st_atime = (time_t) h[offset].atime;
       	stbuf->st_mtime = (time_t) h[offset].mtime;
 
@@ -483,7 +483,7 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 				printf("__myfs_readdir_implem: found directory: %s at block %i\n", path, i-1);
 				//printf("strlen(fName) = %lu, sizeof(fName) - %lu", strlen(h[i-1].fName), sizeof(h[i-1].fName) );
 				names_count++;												// Iterate number of strings in list
-				size_of_fName = (strlen(h[i-1].fName));						// Get length of fName string
+				size_of_fName = (strlen(h[i-1].fName))+1;						// Get length of fName string
 				char *fName_str = malloc(size_of_fName * sizeof(char));		// Allocate memory for fName string
 				strncpy(fName_str, h[i-1].fName, size_of_fName);			// Copy value of fName into mem-allocated pointer
 				names = realloc(names, (sizeof(void *))*names_count);		// Reallocate memory for pointer list
@@ -502,7 +502,8 @@ int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
 		printf("__myfs_readdir_implem: no files or directories found.");
 		return 0;
 	}
-	namesptr = &names;
+
+	*namesptr = names;
 
 
 	printf("__myfs_readdir_implem - SUCCESS\n");
@@ -651,14 +652,16 @@ int __myfs_truncate_implem(void *fsptr, size_t fssize, int *errnoptr,
     struct fsRecord_header *file = h+index;
     const size_t filesize = atol(file->fsSize);
     void *buffer = malloc(filesize);
-    memcpy(buffer, &(file->padding), filesize);
+    memcpy(buffer, file->padding, filesize);
+    printf("buffer %s\n", (char*) buffer);
     if(__myfs_unlink_implem(fsptr, fssize, errnoptr, path) == FAILURE) return -1;  //unlink sets errno on its own
     if(init_fsRecord(fsptr, fssize, path, FALSE, offset) == FAILURE) return -1; //TODO: errno
 
     index = findFileBlock(fsptr, fssize, path);
     file = h+index;
     size_t bytesToCopy = (filesize < offset) ? filesize : offset;
-    memcpy(&(file->padding), buffer, bytesToCopy);
+    memcpy(file->padding, buffer, bytesToCopy);
+    printf("dest %s\n", (char*) file->padding);
     free(buffer);
 
     return 0;
@@ -724,7 +727,8 @@ int __myfs_read_implem(void *fsptr, size_t fssize, int *errnoptr,
     if(offset > filesize) return 0; //EOF, TODO: possible off by one?
 
     const size_t bytesToRead = (filesize < size+offset) ? filesize : size+offset; //min(filesize, size+offset);
-    memcpy(buf, (void *) &(file->padding), bytesToRead);
+    memcpy(buf, (void *) file->padding, bytesToRead);
+    printf("read %lu %s\n", bytesToRead, buf);
     return bytesToRead;
 }
 
