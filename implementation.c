@@ -747,16 +747,15 @@ int __myfs_write_implem(void *fsptr, size_t fssize, int *errnoptr,
 
     if(size + offset > filesize)
     {
-        debug_ustar("Warning: write beyond file extent");  //TODO: call trunc instead of breaking?
-        return 0;   //write nothing, a violation of the standard?
+        int status = __myfs_truncate_implem(fsptr, fssize, errnoptr, path, size + offset);
+        if(status == FAILURE) return -1;    //trunc sets errno on its own
+        index = findFileBlock(fsptr, fssize, path);
+        file = h+index;
     }
-    else
-    {
-        char *fileData = (char *) &(file->padding);
-        char *writePtr = fileData + offset;
-        memcpy(writePtr, buf, size);
-        return size;
-    }
+    char *fileData = (char *) &(file->padding);
+    char *writePtr = fileData + offset;
+    memcpy(writePtr, buf, size);
+    return size;
 }
 
 /* Implements an emulation of the utimensat system call on the filesystem
