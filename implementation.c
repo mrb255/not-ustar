@@ -243,7 +243,7 @@ char isDirectory_fsRecord(void *fsptr, const char *path)
 {
     //TODO: see if the last character is a slash or whatever
     //returning 0 right now (meaning it's not a directory), but need to add some metrics to check.
-    return "0";
+    return '0';
 }
 
 void debug_ustar(const char *statement) //Literally just a print statement.
@@ -294,7 +294,7 @@ int findFileBlock(void *fsptr, size_t fssize, const char *path){
 
 
 
-int init_fsRecord(void *fsptr, const char *path, const char *argIsDirectory, size_t inFsSize)
+int init_fsRecord(void *fsptr, const char *path, char argIsDirectory, size_t inFsSize)
 {
     debug_ustar("init_fsRecord called");
 
@@ -340,7 +340,9 @@ int init_fsRecord(void *fsptr, const char *path, const char *argIsDirectory, siz
 
     //The "check if directory" function (which needs to be written)
     //should be called before this function.
-    strncpy(h[incBlock].isDirectory, argIsDirectory, sizeof(h->isDirectory)); //this line isn't working.
+
+    h[incBlock].isDirectory = argIsDirectory;
+    //strncpy(h[incBlock].isDirectory, argIsDirectory, sizeof(h->isDirectory)); //this line isn't working.
 
     //TODO (maybe): command for finding group and usernames
     strncpy(h[incBlock].gname, "root", sizeof(h->gname));
