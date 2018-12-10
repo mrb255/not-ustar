@@ -328,7 +328,7 @@ int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSi
 
 	printf("Initializing header at block: %i\n", incBlock);
 	strncpy(h[incBlock].eyecatch, "FIRES", sizeof(h->eyecatch));
-    strncpy(h->fName, path, sizeof h->fName);
+    strncpy(h[incBlock].fName, path, sizeof h->fName);
     
     strncpy(h[incBlock].uid, "user0000", sizeof h->uid);
     strncpy(h[incBlock].gid, "group4b0", sizeof h->gid);
@@ -348,7 +348,7 @@ int init_fsRecord(void *fsptr, const char *path, char isDirectory, size_t inFsSi
 
 // ONLY checks for an initialized block at fsptr
 // Do we need to call on every single function?
-int checkFsInit(void *fsptr, size_t fssize)
+int checkFsInit(void *fsptr, size_t fssize)			// We dont need 'path' here. This is just for FS initialization. We know it needs /. and /.. directories.
 {
     if(!(fsptr)) //die
     {
@@ -361,7 +361,14 @@ int checkFsInit(void *fsptr, size_t fssize)
     if(memcmp(h, "FIRES", 6) != 0) //file system has not been initialized
     {
         debug_ustar("checkFSInit: INITIALIZING FILESYSTEM");
-		return init_fsRecord(fsptr, "/.", 't', fssize);				// What do we call root directory?
+		int dot = init_fsRecord(fsptr, "/.", 't', fssize);				// What do we call root directory?
+		int dot_dot = init_fsRecord(fsptr, "/..", 't', fssize);
+
+		printf("dot: %i dot_dot: %i", dot, dot_dot);
+
+		if(dot && dot_dot){
+			return TRUE;
+		}
 		
         //strncpy((char *)h, "FIRES", 6);
     }
@@ -437,9 +444,12 @@ int __myfs_getattr_implem(void *fsptr, size_t fssize, int *errnoptr,uid_t uid, g
 const char *path, struct stat *stbuf)
     {
         //This is an implementation of ustar parse_header
-    	printf("__myfs_getattr_implem( %p, %lu, %p, %i, %i, %s)\n", fsptr, fssize, errnoptr, uid, gid, path);
+    	printf("__myfs_getattr_implem( %p, %lu, %i, %i, %i, %s)\n", fsptr, fssize, *errnoptr, uid, gid, path);
 
-        checkFsInit(fsptr, fssize);
+        if(!checkFsInit(fsptr, fssize)){
+			printf("Error: Filesystem cannot be initialized");
+			return -1;
+		}
 
         const struct fsRecord_header *h = (const struct fsRecord_header *) fsptr;
 		int offset = findFileBlock(fsptr, fssize, path);
@@ -508,11 +518,46 @@ const char *path, struct stat *stbuf)
 int __myfs_readdir_implem(void *fsptr, size_t fssize, int *errnoptr,
                           const char *path, char ***namesptr) {
 
-    debug_ustar("readdir has been called");
-    checkFsInit(fsptr, fssize);
+    printf("__myfs_readdir_implem( %p, %lu, %i, %s) \n", fsptr, fssize, *errnoptr, path);
+    if(!checkFsInit(fsptr, fssize)){
+			printf("Error: Filesystem cannot be initialized");
+			return -1;
+	}
 
-  /* STUB */
-    return -1;
+	struct fsRecord_header *h = (struct fsRecord_header *) fsptr;
+	char **names = NULL;
+	size_t size_of_fName = 0;
+	int names_count = 0;
+
+	// iterate through FS blocks.
+	for( int i = 1; fssize > (i*512); i++){
+		if(memcmp(&(h[i-1].eyecatch), "FIRES", 6) == 0)
+        {
+			if(!strncmp(h[i-1].fName, path, strlen(path))){
+				if(!strncmp(h[i-1].fName, "/.", strlen("/.")) || !strncmp(h[i-1].fName, "/..", strlen("/.."))){
+					printf("__myfs_readdir_implem: NOT INCLUDING directory: %s at block %i\n", h[i-1].fName, i-1);
+					continue;
+				}
+				printf("__myfs_readdir_implem: found directory: %s at block %i\n", path, i-1);
+				printf("strlen(fName) = %lu, sizeof(fName) - %lu", strlen(h[i-1].fName), sizeof(h[i-1].fName) );
+				names_count++;											// Iterate number of strings in list
+				size_of_fName = strlen(h[i-1].fName);					// Get length of fName string
+				void * fName_str = malloc(size_of_fName);				// Allocate memory for fName string
+				names = realloc(names, (sizeof(void *))*names_count);	// Reallocate memory for pointer list
+				names[names_count-1] = fName_str;						// Set fName ptr to names_count-1 because of ++ at beginning
+			}
+        }
+	}
+
+	if(names == NULL){
+		printf("__myfs_readdir_implem: no files or directories found.");
+		return 0;
+	}
+	namesptr = &names;
+
+
+	printf("__myfs_readdir_implem - SUCCESS");
+    return names_count;
 }
 
 /* Implements an emulation of the mknod system call for regular files
