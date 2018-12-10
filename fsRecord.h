@@ -1,3 +1,4 @@
+#define PADDING_SIZE 26
 
 struct fsRecord_header
 {
@@ -18,5 +19,5 @@ struct fsRecord_header
     char uname[32];
     char gname[32];
 
-    char padding[26];
+    char padding[PADDING_SIZE];
 };
